@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-brand-50: #eef0ff;
+  --color-brand-100: #e2e4ff;
+  --color-brand-200: #cbcfff;
+  --color-brand-300: #a8aefc;
+  --color-brand-400: #8b8bf8;
+  --color-brand-500: #6d64f6;
+  --color-brand-600: #5b48ea;
+  --color-brand-700: #4d39cf;
+  --color-brand-800: #3f30a6;
+  --color-brand-900: #342e83;
+  --color-brand-950: #1e1b4b;
+
+  --color-night-800: #16203a;
+  --color-night-900: #0d1424;
+  --color-night-950: #070b16;
+
+  --shadow-soft: 0 10px 40px -12px rgba(15, 23, 42, 0.14);
+  --shadow-brand: 0 12px 28px -8px rgba(91, 72, 234, 0.5);
+
+  --animate-shine: shine 2.4s linear infinite;
+  --animate-pop: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+  @keyframes shine {
+    0% {
+      transform: translateX(-120%);
+    }
+    100% {
+      transform: translateX(320%);
+    }
+  }
+  @keyframes pop {
+    0% {
+      transform: scale(0.6);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
+body {
+  @apply bg-[#eef0f7] font-sans text-slate-900 antialiased dark:bg-night-950 dark:text-slate-100;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+::selection {
+  background: rgba(91, 72, 234, 0.28);
+}
+
+/* Thin subtle scrollbars for long lists */
+.nice-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+}
+.nice-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.nice-scroll::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35);
+  border-radius: 999px;
+}
+
+/* App-card surface */
+.card {
+  @apply rounded-[1.6rem] border border-black/[0.06] bg-white shadow-soft dark:border-white/[0.08] dark:bg-white/[0.045] dark:shadow-none;
+}
+
+.press {
+  @apply transition-transform duration-150 ease-out active:scale-[0.965];
+}
+
+.safe-top {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 1.1rem);
+}
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.9rem);
+}
+
+input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}

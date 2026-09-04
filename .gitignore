@@ -1,0 +1,26 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# PWA: генерируются автоматически при каждой сборке (см. next.config.ts)
+/public/sw.js
+/public/.nojekyll
+
+# environment / secrets — не коммитим!
+.env
+.env*.local
+
+# logs
+*.log
+npm-debug.log*
+
+# system
+.DS_Store
+Thumbs.db
+
+# misc
+.vercel
+next-env.d.ts

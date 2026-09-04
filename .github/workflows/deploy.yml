@@ -1,0 +1,74 @@
+name: Build and deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Права, необходимые для публикации на Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Одновременно только один деплой; новый push отменяет предыдущий
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Для project-pages (https://<user>.github.io/<repo>/) базовый путь = /<repo>.
+      # Для user-pages (https://<user>.github.io) — корень.
+      - name: Compute base path
+        shell: bash
+        run: |
+          REPO="${{ github.event.repository.name }}"
+          if [[ "$REPO" == *.github.io ]]; then
+            echo "BASE_PATH=" >> "$GITHUB_ENV"
+          else
+            echo "BASE_PATH=/$REPO" >> "$GITHUB_ENV"
+          fi
+          echo "Base path: $BASE_PATH"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Статический экспорт в ./out. Версия service worker подставляется
+      # автоматически в next.config.ts (номер запуска Actions + версия пакета),
+      # поэтому каждый деплой = новая версия кэша = автообновление у пользователей.
+      - name: Build static site
+        run: npm run build
+        env:
+          GITHUB_PAGES: "true"
+          NEXT_PUBLIC_BASE_PATH: ${{ env.BASE_PATH }}
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

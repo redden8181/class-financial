@@ -23,6 +23,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Включаем Pages автоматически (режим "GitHub Actions"), чтобы
+      # первый же деплой прошёл без ручной настройки в Settings → Pages.
+      # Если Pages уже включены — шаг просто сообщит об этом.
+      - name: Enable GitHub Pages
+        run: |
+          gh api --method POST -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/pages" \
+            -F "build_type=workflow" \
+            || echo "Pages уже включены — продолжаем"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:

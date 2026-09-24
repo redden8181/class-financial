@@ -6,8 +6,11 @@ import {
   Coins,
   Pencil,
   PiggyBank,
+  Plus,
+  Receipt,
   Trash2,
   Users,
+  Wallet,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -15,6 +18,7 @@ import { useNav } from "../app/nav";
 import { useStore } from "../app/store";
 import {
   byName,
+  collectionExpenses,
   collectionStats,
   deadlineInfo,
   formatDate,
@@ -24,10 +28,12 @@ import {
   paymentStatus,
   plural,
 } from "../app/utils";
-import type { Child } from "../app/types";
+import type { Child, Expense } from "../app/types";
 import { Avatar } from "../components/Avatar";
 import { CollectionFormSheet } from "../components/CollectionFormSheet";
+import { ExpenseFormSheet } from "../components/ExpenseFormSheet";
 import { PaymentSheet } from "../components/PaymentSheet";
+import { ReceiptPhoto } from "../components/ReceiptPhoto";
 import {
   Button,
   ConfirmSheet,
@@ -41,17 +47,21 @@ import { cn } from "../utils/cn";
 type Filter = "all" | "paid" | "partial" | "none";
 
 export function CollectionDetailScreen({ collectionId }: { collectionId: string }) {
-  const { data, removeCollection } = useStore();
+  const { data, removeCollection, removeExpense } = useStore();
   const { pop, setTab } = useNav();
   const [filter, setFilter] = useState<Filter>("all");
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [paymentChildId, setPaymentChildId] = useState<string | null>(null);
+  const [expenseFormOpen, setExpenseFormOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
 
   const collection = data.collections.find((c) => c.id === collectionId);
   if (!collection) return <div className="p-6" />;
 
   const s = collectionStats(data, collection);
+  const expenses = collectionExpenses(data, collection.id);
   const dl = deadlineInfo(collection.deadline);
   const paidMap = data.payments[collection.id] ?? {};
   const statusOf = (child: Child) =>
@@ -173,7 +183,124 @@ export function CollectionDetailScreen({ collectionId }: { collectionId: string 
             money
           />
         </div>
+
+        {/* Касса: собрано − потрачено */}
+        {s.spent > 0 && (
+          <div className="relative mt-2.5 flex items-center justify-between gap-3 rounded-2xl bg-app-soft p-3.5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <Wallet size={17} className="shrink-0 text-app-muted" />
+              <div className="min-w-0">
+                <div className="text-[11px] font-medium text-app-muted">
+                  Потрачено {formatMoney(s.spent)} из {formatMoney(s.collected)}
+                </div>
+                <div className="text-xs font-bold">Остаток в кассе</div>
+              </div>
+            </div>
+            <div
+              className={cn(
+                "shrink-0 text-lg font-extrabold tracking-tight",
+                s.balance < 0
+                  ? "text-rose-500 dark:text-rose-400"
+                  : "text-emerald-600 dark:text-emerald-400"
+              )}
+            >
+              {formatMoney(s.balance)}
+            </div>
+          </div>
+        )}
       </section>
+
+      {/* Расходы */}
+      <div className="mt-7 flex items-center justify-between px-1">
+        <h2 className="text-lg font-bold tracking-tight">Расходы</h2>
+        <button
+          type="button"
+          onClick={() => {
+            setEditingExpense(null);
+            setExpenseFormOpen(true);
+          }}
+          className="flex items-center gap-1.5 rounded-full bg-app-soft px-3.5 py-2 text-xs font-bold text-app-text transition-all active:scale-95"
+        >
+          <Plus size={14} strokeWidth={2.8} />
+          Добавить
+        </button>
+      </div>
+
+      {expenses.length === 0 ? (
+        <button
+          type="button"
+          onClick={() => {
+            setEditingExpense(null);
+            setExpenseFormOpen(true);
+          }}
+          className="card mt-3 flex w-full items-center gap-3 p-4 text-left transition-transform active:scale-[0.98]"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-app-soft text-app-muted">
+            <Receipt size={19} />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-bold">Трат пока нет</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-app-muted">
+              Записывайте, на что потратили деньги, и прикладывайте фото чека
+            </span>
+          </span>
+        </button>
+      ) : (
+        <div className="card mt-3 overflow-hidden">
+          {expenses.map((e, i) => (
+            <div
+              key={e.id}
+              className={cn(
+                "flex items-center gap-3 p-3.5",
+                i > 0 && "border-t border-app-border/70"
+              )}
+            >
+              {e.photoId ? (
+                <ReceiptPhoto photoId={e.photoId} className="h-12 w-12" />
+              ) : (
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-app-soft text-app-muted">
+                  <Receipt size={18} />
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingExpense(e);
+                  setExpenseFormOpen(true);
+                }}
+                className="min-w-0 flex-1 text-left"
+              >
+                <div className="truncate text-sm font-semibold">{e.title}</div>
+                <div className="mt-0.5 truncate text-xs font-medium text-app-muted">
+                  {e.date ? formatDate(e.date) : ""}
+                  {e.note ? ` · ${e.note}` : ""}
+                </div>
+              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                <span className="text-sm font-bold text-rose-500 dark:text-rose-400">
+                  −{formatMoney(e.amount)}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Удалить расход"
+                  onClick={() => setExpenseToDelete(e)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-app-muted transition-all active:scale-90 active:text-rose-500"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          ))}
+          <div className="flex items-center justify-between bg-app-soft/70 px-4 py-3">
+            <span className="text-xs font-bold uppercase tracking-wide text-app-muted">
+              Всего потрачено
+            </span>
+            <span className="text-sm font-extrabold text-rose-500 dark:text-rose-400">
+              {formatMoney(s.spent)}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Список детей */}
       {data.children.length === 0 ? (
@@ -260,6 +387,29 @@ export function CollectionDetailScreen({ collectionId }: { collectionId: string 
         onClose={() => setPaymentChildId(null)}
         collectionId={collection.id}
         childId={paymentChildId}
+      />
+      <ExpenseFormSheet
+        open={expenseFormOpen}
+        onClose={() => {
+          setExpenseFormOpen(false);
+          setEditingExpense(null);
+        }}
+        collectionId={collection.id}
+        initial={editingExpense}
+      />
+      <ConfirmSheet
+        open={expenseToDelete !== null}
+        onClose={() => setExpenseToDelete(null)}
+        onConfirm={() => {
+          if (expenseToDelete) removeExpense(collection.id, expenseToDelete.id);
+          setExpenseToDelete(null);
+        }}
+        title="Удалить расход?"
+        text={
+          expenseToDelete
+            ? `Запись «${expenseToDelete.title}» на ${formatMoney(expenseToDelete.amount)} будет удалена вместе с фото чека.`
+            : ""
+        }
       />
       <CollectionFormSheet
         open={editOpen}

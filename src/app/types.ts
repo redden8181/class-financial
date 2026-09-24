@@ -36,14 +36,33 @@ export interface PaymentState {
 /** payments[collectionId][childId] */
 export type PaymentsMap = Record<string, Record<string, PaymentState>>;
 
+/** трата из собранных денег */
+export interface Expense {
+  id: string;
+  /** на что потратили: «Рабочие тетради» */
+  title: string;
+  amount: number;
+  /** дата траты в формате yyyy-mm-dd */
+  date: string;
+  note?: string;
+  /** ключ фотографии чека в IndexedDB */
+  photoId?: string;
+  createdAt: number;
+}
+
+/** expenses[collectionId] */
+export type ExpensesMap = Record<string, Expense[]>;
+
 export interface AppData {
   children: Child[];
   collections: Collection[];
   payments: PaymentsMap;
+  expenses: ExpensesMap;
 }
 
 export const emptyData: AppData = {
   children: [],
   collections: [],
   payments: {},
+  expenses: {},
 };

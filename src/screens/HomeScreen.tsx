@@ -80,6 +80,26 @@ export function HomeScreen() {
               </span>
             </span>
           </div>
+          {totals.spent > 0 && (
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-app-soft p-3.5">
+              <div className="min-w-0">
+                <div className="text-[11px] font-medium text-app-muted">
+                  Потрачено {formatMoney(totals.spent)}
+                </div>
+                <div className="text-xs font-bold">Остаток в кассе класса</div>
+              </div>
+              <div
+                className={cn(
+                  "shrink-0 text-lg font-extrabold tracking-tight",
+                  totals.balance < 0
+                    ? "text-rose-500 dark:text-rose-400"
+                    : "text-emerald-600 dark:text-emerald-400"
+                )}
+              >
+                {formatMoney(totals.balance)}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

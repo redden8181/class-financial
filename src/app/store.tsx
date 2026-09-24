@@ -6,8 +6,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { AppData, Child, Collection, Gender } from "./types";
+import type { AppData, Child, Collection, Expense, Gender } from "./types";
 import { createAdapter } from "./storage";
+import { deletePhoto } from "./photos";
 import { paidAmount, paymentStatus, uid } from "./utils";
 
 export interface ChildInput {
@@ -38,6 +39,20 @@ interface Store {
   removeContribution(collectionId: string, childId: string, contributionId: string): void;
   /** полностью ли оплачен сбор ребёнком */
   isPaid(collectionId: string, childId: string): boolean;
+  /** добавить трату по сбору */
+  addExpense(collectionId: string, input: ExpenseInput): void;
+  /** изменить трату */
+  updateExpense(collectionId: string, expenseId: string, patch: ExpenseInput): void;
+  /** удалить трату (вместе с фото чека) */
+  removeExpense(collectionId: string, expenseId: string): void;
+}
+
+export interface ExpenseInput {
+  title: string;
+  amount: number;
+  date: string;
+  note?: string;
+  photoId?: string;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -106,10 +121,70 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setData((d) => {
           const payments = { ...d.payments };
           delete payments[id];
+          const expenses = { ...d.expenses };
+          for (const e of expenses[id] ?? []) {
+            if (e.photoId) void deletePhoto(e.photoId);
+          }
+          delete expenses[id];
           return {
             ...d,
             collections: d.collections.filter((c) => c.id !== id),
             payments,
+            expenses,
+          };
+        });
+      },
+
+      addExpense(collectionId, input) {
+        if (!Number.isFinite(input.amount) || input.amount <= 0) return;
+        const expense: Expense = {
+          id: uid(),
+          createdAt: Date.now(),
+          ...input,
+          amount: Math.round(input.amount * 100) / 100,
+        };
+        setData((d) => ({
+          ...d,
+          expenses: {
+            ...d.expenses,
+            [collectionId]: [...(d.expenses[collectionId] ?? []), expense],
+          },
+        }));
+      },
+
+      updateExpense(collectionId, expenseId, patch) {
+        setData((d) => {
+          const list = d.expenses[collectionId] ?? [];
+          const prev = list.find((e) => e.id === expenseId);
+          // старое фото заменили — удаляем из IndexedDB
+          if (prev?.photoId && prev.photoId !== patch.photoId) {
+            void deletePhoto(prev.photoId);
+          }
+          return {
+            ...d,
+            expenses: {
+              ...d.expenses,
+              [collectionId]: list.map((e) =>
+                e.id === expenseId
+                  ? { ...e, ...patch, amount: Math.round(patch.amount * 100) / 100 }
+                  : e
+              ),
+            },
+          };
+        });
+      },
+
+      removeExpense(collectionId, expenseId) {
+        setData((d) => {
+          const list = d.expenses[collectionId] ?? [];
+          const target = list.find((e) => e.id === expenseId);
+          if (target?.photoId) void deletePhoto(target.photoId);
+          return {
+            ...d,
+            expenses: {
+              ...d.expenses,
+              [collectionId]: list.filter((e) => e.id !== expenseId),
+            },
           };
         });
       },

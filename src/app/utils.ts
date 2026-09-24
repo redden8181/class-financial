@@ -124,6 +124,18 @@ export function deadlineInfo(deadline?: string): DeadlineInfo | null {
 
 /* ------------------------- статистика ------------------------- */
 
+/** сумма всех трат по сбору */
+export function expensesTotal(data: AppData, collectionId: string): number {
+  return (data.expenses[collectionId] ?? []).reduce((s, e) => s + e.amount, 0);
+}
+
+/** траты сбора, свежие сверху */
+export function collectionExpenses(data: AppData, collectionId: string) {
+  return [...(data.expenses[collectionId] ?? [])].sort(
+    (a, b) => b.createdAt - a.createdAt
+  );
+}
+
 export interface CollectionStats {
   total: number;
   /** сдали полностью */
@@ -136,6 +148,10 @@ export interface CollectionStats {
   remaining: number;
   percent: number;
   done: boolean;
+  /** потрачено из собранных денег */
+  spent: number;
+  /** остаток в кассе: собрано − потрачено */
+  balance: number;
 }
 
 export function collectionStats(data: AppData, collection: Collection): CollectionStats {
@@ -158,6 +174,7 @@ export function collectionStats(data: AppData, collection: Collection): Collecti
 
   const none = total - paid - partial;
   const percent = total === 0 ? 0 : Math.round((paid / total) * 100);
+  const spent = expensesTotal(data, collection.id);
   return {
     total,
     paid,
@@ -167,6 +184,8 @@ export function collectionStats(data: AppData, collection: Collection): Collecti
     remaining,
     percent,
     done: total > 0 && paid === total,
+    spent,
+    balance: collected - spent,
   };
 }
 
@@ -250,6 +269,10 @@ export interface GrandTotals {
   debtors: number;
   kids: number;
   collectedPercent: number;
+  /** потрачено по всем сборам */
+  spent: number;
+  /** остаток в кассе класса */
+  balance: number;
 }
 
 export function grandTotals(data: AppData): GrandTotals {
@@ -268,12 +291,18 @@ export function grandTotals(data: AppData): GrandTotals {
     }
   }
   const all = collected + remaining;
+  let spent = 0;
+  for (const list of Object.values(data.expenses)) {
+    for (const e of list) spent += e.amount;
+  }
   return {
     collected,
     remaining,
     debtors: debtors.size,
     kids: data.children.length,
     collectedPercent: all === 0 ? 0 : Math.round((collected / all) * 100),
+    spent,
+    balance: collected - spent,
   };
 }
 

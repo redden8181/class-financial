@@ -53,9 +53,6 @@ export function PaymentSheet({
   const parsed = Number.parseFloat(amountInput.replace(/\s/g, "").replace(",", "."));
   const canAdd = status !== "full" && Number.isFinite(parsed) && parsed > 0;
 
-  const quick = [100, 200, 500].filter((v) => v < remaining);
-  if (remaining > 0) quick.push(remaining);
-
   const submit = () => {
     if (!canAdd) return;
     const value = Math.min(parsed, remaining);
@@ -131,22 +128,6 @@ export function PaymentSheet({
                 ₽
               </span>
             </div>
-            {quick.length > 0 && (
-              <div className="mt-2.5 flex flex-wrap gap-2">
-                {quick.map((v, i) => (
-                  <button
-                    key={`${v}-${i}`}
-                    type="button"
-                    onClick={() => setAmountInput(String(v))}
-                    className="rounded-full border border-app-border bg-app-card px-3.5 py-1.5 text-xs font-bold text-app-muted transition-all active:scale-95"
-                  >
-                    {v === remaining && v !== 100 && v !== 200 && v !== 500
-                      ? `Всё · ${formatMoney(v)}`
-                      : formatMoney(v)}
-                  </button>
-                ))}
-              </div>
-            )}
             <Button className="mt-3" onClick={submit} disabled={!canAdd}>
               <Coins size={18} />
               {canAdd && Math.min(parsed, remaining) >= remaining - 0.001

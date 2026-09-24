@@ -1,4 +1,11 @@
-import { emptyData, type AppData, type Contribution, type PaymentsMap } from "./types";
+import {
+  emptyData,
+  type AppData,
+  type Contribution,
+  type Expense,
+  type ExpensesMap,
+  type PaymentsMap,
+} from "./types";
 import { uid } from "./utils";
 
 /**
@@ -61,6 +68,30 @@ function normalizePayments(
   return out;
 }
 
+/** расходы могли отсутствовать в старых версиях данных */
+function normalizeExpenses(raw: unknown): ExpensesMap {
+  const out: ExpensesMap = {};
+  if (!raw || typeof raw !== "object") return out;
+
+  for (const [collectionId, list] of Object.entries(raw as Record<string, unknown>)) {
+    if (!Array.isArray(list)) continue;
+    const items: Expense[] = list
+      .filter((e) => e && typeof e.amount === "number" && e.amount > 0)
+      .map((e) => ({
+        id: typeof e.id === "string" ? e.id : uid(),
+        title: typeof e.title === "string" ? e.title : "Расход",
+        amount: e.amount,
+        date: typeof e.date === "string" ? e.date : "",
+        note: typeof e.note === "string" ? e.note : undefined,
+        photoId: typeof e.photoId === "string" ? e.photoId : undefined,
+        createdAt: typeof e.createdAt === "number" ? e.createdAt : Date.now(),
+      }));
+    if (items.length > 0) out[collectionId] = items;
+  }
+
+  return out;
+}
+
 export class LocalStorageAdapter implements StorageAdapter {
   load(): AppData {
     try {
@@ -75,6 +106,7 @@ export class LocalStorageAdapter implements StorageAdapter {
         children: Array.isArray(parsed.children) ? parsed.children : [],
         collections,
         payments: normalizePayments(parsed.payments, amountByCollection),
+        expenses: normalizeExpenses(parsed.expenses),
       };
     } catch {
       return emptyData;

@@ -116,7 +116,6 @@ export function ExpenseFormSheet({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             autoComplete="off"
-            autoFocus
           />
         </div>
 

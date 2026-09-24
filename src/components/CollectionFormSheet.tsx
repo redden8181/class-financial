@@ -74,7 +74,6 @@ export function CollectionFormSheet({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             autoComplete="off"
-            autoFocus
           />
         </div>
         <div className="grid grid-cols-2 gap-3">

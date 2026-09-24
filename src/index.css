@@ -44,6 +44,18 @@
     scroll-behavior: smooth;
   }
   body {
+    /* не давать iOS Safari скроллить страницу при появлении клавиатуры */
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+  body {
     background: var(--bg);
     color: var(--text);
     font-family: var(--font-sans);

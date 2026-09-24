@@ -58,7 +58,6 @@ export function ChildFormSheet({
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
             autoComplete="off"
-            autoFocus
           />
         </div>
         <div>

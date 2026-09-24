@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { X, type LucideIcon } from "lucide-react";
 import {
+  useEffect,
   useId,
   type ButtonHTMLAttributes,
   type ReactNode,
@@ -162,6 +163,21 @@ export function Sheet({
   title: string;
   children: ReactNode;
 }) {
+  // фиксируем страницу на время открытой шторки:
+  // iOS Safari не будет сдвигать её при появлении клавиатуры
+  useEffect(() => {
+    if (!open) return;
+    const body = document.body;
+    const scrollY = window.scrollY;
+    body.style.top = `-${scrollY}px`;
+    body.classList.add("sheet-open");
+    return () => {
+      body.classList.remove("sheet-open");
+      body.style.top = "";
+      window.scrollTo(0, scrollY);
+    };
+  }, [open]);
+
   return (
     <AnimatePresence>
       {open && (

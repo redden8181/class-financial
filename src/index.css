@@ -67,8 +67,19 @@
   button {
     font-size: 16px;
   }
+  /* у input[type=date] в Safari есть своя минимальная ширина —
+     без этого он распирает узкие колонки и ломает вёрстку шторок */
   input[type="date"] {
     min-height: 3rem;
+    min-width: 0;
+    max-width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input,
+  textarea {
+    min-width: 0;
+    max-width: 100%;
   }
   ::selection {
     background: rgba(245, 158, 11, 0.3);

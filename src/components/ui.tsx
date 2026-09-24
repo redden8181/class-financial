@@ -190,7 +190,7 @@ export function Sheet({
             onClick={onClose}
           />
           <motion.div
-            className="pb-safe relative z-10 max-h-[92dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[1.75rem] border border-app-border bg-app-card shadow-2xl"
+            className="pb-safe relative z-10 max-h-[92dvh] w-full max-w-md overflow-y-auto overflow-x-hidden overscroll-contain rounded-t-[1.75rem] border border-app-border bg-app-card shadow-2xl"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}

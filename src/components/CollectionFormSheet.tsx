@@ -76,38 +76,37 @@ export function CollectionFormSheet({
             autoComplete="off"
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label" htmlFor="coll-amount">
-              Сумма с ребёнка
-            </label>
-            <div className="relative">
-              <input
-                id="coll-amount"
-                className="input pr-9"
-                placeholder="500"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                inputMode="decimal"
-                autoComplete="off"
-              />
-              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-app-muted">
-                ₽
-              </span>
-            </div>
-          </div>
-          <div>
-            <label className="label" htmlFor="coll-date">
-              Дата создания
-            </label>
+        <div>
+          <label className="label" htmlFor="coll-amount">
+            Сумма с ребёнка
+          </label>
+          <div className="relative">
             <input
-              id="coll-date"
-              type="date"
-              className="input"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
+              id="coll-amount"
+              className="input pr-9"
+              placeholder="500"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              inputMode="decimal"
+              autoComplete="off"
             />
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-app-muted">
+              ₽
+            </span>
           </div>
+        </div>
+
+        <div>
+          <label className="label" htmlFor="coll-date">
+            Дата создания
+          </label>
+          <input
+            id="coll-date"
+            type="date"
+            className="input"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
         </div>
         <div>
           <label className="label" htmlFor="coll-deadline">

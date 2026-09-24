@@ -1,4 +1,5 @@
-import { Camera, ImageUp, Loader2, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Camera, ImageUp, Loader2, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { compressImage, deletePhoto, getPhoto, savePhoto } from "../app/photos";
 import { useStore } from "../app/store";
@@ -27,6 +28,7 @@ export function ExpenseFormSheet({
   const [photoId, setPhotoId] = useState<string | undefined>(undefined);
   const [preview, setPreview] = useState<string | null>(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
+  const [zoom, setZoom] = useState(false);
   /** фото, сохранённые в этой сессии, но не подтверждённые кнопкой «Сохранить» */
   const draftPhotos = useRef<string[]>([]);
 
@@ -119,38 +121,37 @@ export function ExpenseFormSheet({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label" htmlFor="exp-amount">
-              Сумма
-            </label>
-            <div className="relative">
-              <input
-                id="exp-amount"
-                className="input pr-9"
-                placeholder="3 500"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                inputMode="decimal"
-                autoComplete="off"
-              />
-              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-app-muted">
-                ₽
-              </span>
-            </div>
-          </div>
-          <div>
-            <label className="label" htmlFor="exp-date">
-              Дата
-            </label>
+        <div>
+          <label className="label" htmlFor="exp-amount">
+            Сумма
+          </label>
+          <div className="relative">
             <input
-              id="exp-date"
-              type="date"
-              className="input"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
+              id="exp-amount"
+              className="input pr-9"
+              placeholder="3 500"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              inputMode="decimal"
+              autoComplete="off"
             />
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-app-muted">
+              ₽
+            </span>
           </div>
+        </div>
+
+        <div>
+          <label className="label" htmlFor="exp-date">
+            Дата
+          </label>
+          <input
+            id="exp-date"
+            type="date"
+            className="input"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
         </div>
 
         {/* Фото чека */}
@@ -164,8 +165,20 @@ export function ExpenseFormSheet({
             onChange={(e) => void pickPhoto(e.target.files?.[0])}
           />
           {preview ? (
-            <div className="relative overflow-hidden rounded-2xl border border-app-border">
-              <img src={preview} alt="Чек" className="max-h-64 w-full object-cover" />
+            <div className="overflow-hidden rounded-2xl border border-app-border">
+              {/* чек показываем целиком, без обрезки краёв */}
+              <button
+                type="button"
+                onClick={() => setZoom(true)}
+                className="block w-full bg-app-soft"
+                aria-label="Открыть чек на весь экран"
+              >
+                <img
+                  src={preview}
+                  alt="Чек"
+                  className="mx-auto max-h-72 w-auto max-w-full object-contain"
+                />
+              </button>
               <div className="flex gap-2 bg-app-card p-2">
                 <Button
                   variant="soft"
@@ -217,6 +230,34 @@ export function ExpenseFormSheet({
           {initial ? "Сохранить" : "Добавить расход"}
         </Button>
       </div>
+
+      {/* Просмотр чека на весь экран */}
+      <AnimatePresence>
+        {zoom && preview && (
+          <motion.div
+            className="fixed inset-0 z-[95] flex items-center justify-center bg-black/90 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setZoom(false)}
+          >
+            <img
+              src={preview}
+              alt="Чек"
+              className="max-h-full max-w-full rounded-2xl object-contain"
+            />
+            <button
+              type="button"
+              onClick={() => setZoom(false)}
+              aria-label="Закрыть"
+              className="absolute right-5 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur"
+              style={{ top: "max(env(safe-area-inset-top), 1.25rem)" }}
+            >
+              <X size={20} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Sheet>
   );
 }

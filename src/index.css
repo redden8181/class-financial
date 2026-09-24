@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-app-bg: var(--bg);
+  --color-app-card: var(--surface);
+  --color-app-soft: var(--surface-2);
+  --color-app-text: var(--text);
+  --color-app-muted: var(--text-2);
+  --color-app-border: var(--border);
+}
+
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+:root {
+  --bg: #faf7f2;
+  --surface: #ffffff;
+  --surface-2: #f3eee6;
+  --text: #292524;
+  --text-2: #857c71;
+  --border: #ede6da;
+  --shadow: 0 1px 2px rgba(60, 48, 30, 0.05), 0 12px 32px -16px rgba(60, 48, 30, 0.14);
+  --shadow-lg: 0 2px 6px rgba(60, 48, 30, 0.06), 0 24px 48px -20px rgba(60, 48, 30, 0.22);
+}
+
+.dark {
+  --bg: #16130f;
+  --surface: #211d18;
+  --surface-2: #2c2721;
+  --text: #f3ede3;
+  --text-2: #a2978a;
+  --border: #322c25;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px -16px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.45), 0 24px 48px -20px rgba(0, 0, 0, 0.7);
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* отключить авто-зум iOS при фокусе в инпутах */
+  input,
+  textarea,
+  select,
+  button {
+    font-size: 16px;
+  }
+  input[type="date"] {
+    min-height: 3rem;
+  }
+  ::selection {
+    background: rgba(245, 158, 11, 0.3);
+  }
+}
+
+@layer components {
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1.5rem;
+    box-shadow: var(--shadow);
+  }
+  .input {
+    width: 100%;
+    border-radius: 1rem;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    padding: 0.8rem 1rem;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .input::placeholder {
+    color: color-mix(in srgb, var(--text-2) 65%, transparent);
+  }
+  .input:focus {
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.16);
+  }
+  .label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--text-2);
+    margin-bottom: 0.4rem;
+  }
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

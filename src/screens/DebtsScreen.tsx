@@ -30,8 +30,8 @@ export function DebtsScreen() {
             title={data.collections.length === 0 ? "Долгов нет" : "Долгов нет — все сдали!"}
             text={
               data.collections.length === 0
-                ? "Когда появятся неоплаченные сборы, они будут собраны здесь."
-                : "Все сборы оплачены. Отличная работа родительского комитета!"
+                ? "Когда появятся неоплаченные сборы, они будут собраны здесь и на главном экране."
+                : "Все сборы оплачены полностью. Отличная работа родительского комитета!"
             }
           />
         </div>
@@ -53,7 +53,8 @@ export function DebtsScreen() {
               </div>
               <div className="mt-2 text-xs font-medium text-app-muted">
                 {debts.length}{" "}
-                {plural(debts.length, "должник", "должника", "должников")}
+                {plural(debts.length, "должник", "должника", "должников")} —
+                учитываются и частичные взносы
               </div>
             </div>
           </section>
@@ -74,7 +75,7 @@ export function DebtsScreen() {
                   <ChevronRight size={17} className="shrink-0 text-app-muted" />
                 </button>
                 <div className="border-t border-app-border/70 px-4">
-                  {items.map(({ collection }, i) => (
+                  {items.map(({ collection, sum, remaining }, i) => (
                     <div
                       key={collection.id}
                       className={
@@ -83,11 +84,18 @@ export function DebtsScreen() {
                       }
                     >
                       <XCircle size={15} className="shrink-0 text-rose-400" />
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-app-muted">
-                        {collection.title}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-app-text">
+                          {collection.title}
+                        </span>
+                        {sum > 0 && (
+                          <span className="block text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                            уже внесено {formatMoney(sum)}
+                          </span>
+                        )}
                       </span>
                       <span className="shrink-0 text-sm font-bold">
-                        {formatMoney(collection.amount)}
+                        {formatMoney(remaining)}
                       </span>
                     </div>
                   ))}

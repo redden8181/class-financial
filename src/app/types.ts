@@ -14,15 +14,23 @@ export interface Collection {
   /** сумма с одного ребёнка, в рублях */
   amount: number;
   description?: string;
-  /** дата в формате yyyy-mm-dd */
+  /** дата создания/события в формате yyyy-mm-dd */
   date: string;
+  /** к какой дате нужно собрать деньги (yyyy-mm-dd), необязательно */
+  deadline?: string;
   createdAt: number;
 }
 
+/** один частичный взнос */
+export interface Contribution {
+  id: string;
+  amount: number;
+  /** timestamp взноса */
+  date: number;
+}
+
 export interface PaymentState {
-  paid: boolean;
-  /** timestamp оплаты */
-  paidAt?: number;
+  contributions: Contribution[];
 }
 
 /** payments[collectionId][childId] */

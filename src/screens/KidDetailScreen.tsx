@@ -1,7 +1,7 @@
 import {
   Check,
   ChevronLeft,
-  CircleDashed,
+  Coins,
   History,
   Pencil,
   Trash2,
@@ -16,18 +16,19 @@ import {
   formatDate,
   formatMoney,
   fullName,
-  vibrate,
 } from "../app/utils";
 import { Avatar } from "../components/Avatar";
 import { ChildFormSheet } from "../components/ChildFormSheet";
+import { PaymentSheet } from "../components/PaymentSheet";
 import { ConfirmSheet, EmptyState, IconButton } from "../components/ui";
 import { cn } from "../utils/cn";
 
 export function KidDetailScreen({ childId }: { childId: string }) {
-  const { data, removeChild, setPaid } = useStore();
+  const { data, removeChild } = useStore();
   const { pop } = useNav();
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [paymentCollectionId, setPaymentCollectionId] = useState<string | null>(null);
 
   const child = data.children.find((c) => c.id === childId);
   if (!child) return <div className="p-6" />;
@@ -111,7 +112,7 @@ export function KidDetailScreen({ childId }: { childId: string }) {
         <h2 className="text-lg font-bold tracking-tight">История сборов</h2>
         {history.length > 0 && (
           <span className="text-xs font-semibold text-app-muted">
-            нажмите, чтобы отметить
+            нажмите, чтобы внести взнос
           </span>
         )}
       </div>
@@ -126,14 +127,11 @@ export function KidDetailScreen({ childId }: { childId: string }) {
         </div>
       ) : (
         <div className="card mt-3 overflow-hidden">
-          {history.map(({ collection, paid, paidAt }, i) => (
+          {history.map(({ collection, sum, remaining, status, lastDate }, i) => (
             <button
               key={collection.id}
               type="button"
-              onClick={() => {
-                setPaid(collection.id, childId, !paid);
-                vibrate();
-              }}
+              onClick={() => setPaymentCollectionId(collection.id)}
               className={cn(
                 "flex w-full items-center gap-3 p-4 text-left transition-colors active:bg-app-soft/70",
                 i > 0 && "border-t border-app-border/70"
@@ -142,12 +140,20 @@ export function KidDetailScreen({ childId }: { childId: string }) {
               <span
                 className={cn(
                   "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors",
-                  paid
+                  status === "full"
                     ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
-                    : "bg-rose-100 text-rose-500 dark:bg-rose-500/15 dark:text-rose-300"
+                    : status === "partial"
+                      ? "bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300"
+                      : "bg-rose-100 text-rose-500 dark:bg-rose-500/15 dark:text-rose-300"
                 )}
               >
-                {paid ? <Check size={16} strokeWidth={2.8} /> : <X size={16} strokeWidth={2.8} />}
+                {status === "full" ? (
+                  <Check size={16} strokeWidth={2.8} />
+                ) : status === "partial" ? (
+                  <Coins size={15} />
+                ) : (
+                  <X size={16} strokeWidth={2.8} />
+                )}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold">
@@ -156,14 +162,18 @@ export function KidDetailScreen({ childId }: { childId: string }) {
                 <span
                   className={cn(
                     "mt-0.5 block text-xs font-medium",
-                    paid
+                    status === "full"
                       ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-rose-500 dark:text-rose-400"
+                      : status === "partial"
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-rose-500 dark:text-rose-400"
                   )}
                 >
-                  {paid
-                    ? `Оплачено ${formatDate(paidAt ?? Date.now())}`
-                    : "Не оплачено"}
+                  {status === "full"
+                    ? `Оплачено полностью${lastDate ? ` · ${formatDate(lastDate)}` : ""}`
+                    : status === "partial"
+                      ? `Внесено ${formatMoney(sum)} — осталось ${formatMoney(remaining)}`
+                      : "Не оплачено"}
                 </span>
               </span>
               <span className="shrink-0 text-sm font-bold">
@@ -174,6 +184,12 @@ export function KidDetailScreen({ childId }: { childId: string }) {
         </div>
       )}
 
+      <PaymentSheet
+        open={paymentCollectionId !== null}
+        onClose={() => setPaymentCollectionId(null)}
+        collectionId={paymentCollectionId}
+        childId={child.id}
+      />
       <ChildFormSheet
         open={editOpen}
         onClose={() => setEditOpen(false)}
@@ -192,8 +208,4 @@ export function KidDetailScreen({ childId }: { childId: string }) {
       />
     </div>
   );
-}
-
-export function KidDetailPlaceholder() {
-  return <CircleDashed size={20} />;
 }

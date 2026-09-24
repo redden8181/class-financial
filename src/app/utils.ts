@@ -1,4 +1,4 @@
-import type { AppData, Child, Collection } from "./types";
+import type { AppData, Child, Collection, PaymentState } from "./types";
 
 export function uid(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -30,6 +30,16 @@ export function formatDate(input: string | number): string {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+/** короткая дата: 12.09 */
+export function formatDateShort(input: string | number): string {
+  const d =
+    typeof input === "number"
+      ? new Date(input)
+      : new Date(input.length === 10 ? `${input}T00:00:00` : input);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
 }
 
 /** сегодня в формате input[type=date] */
@@ -65,12 +75,63 @@ export function vibrate(ms = 12): void {
   }
 }
 
+/* ---------------------- оплата и взнос­­ы ---------------------- */
+
+export type PaymentStatus = "none" | "partial" | "full";
+
+/** сколько уже внесено по сбору */
+export function paidAmount(state?: PaymentState): number {
+  if (!state) return 0;
+  return state.contributions.reduce((s, c) => s + c.amount, 0);
+}
+
+export function paymentStatus(state: PaymentState | undefined, amount: number): PaymentStatus {
+  const sum = paidAmount(state);
+  if (sum <= 0) return "none";
+  return sum < amount ? "partial" : "full";
+}
+
+/** сколько осталось внести */
+export function remainingFor(state: PaymentState | undefined, amount: number): number {
+  return Math.max(0, amount - paidAmount(state));
+}
+
+/* --------------------------- дедлайн --------------------------- */
+
+export interface DeadlineInfo {
+  /** сколько дней осталось (отрицательное — просрочено) */
+  daysLeft: number;
+  overdue: boolean;
+  label: string;
+}
+
+export function deadlineInfo(deadline?: string): DeadlineInfo | null {
+  if (!deadline) return null;
+  const end = new Date(`${deadline}T00:00:00`);
+  if (Number.isNaN(end.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const daysLeft = Math.round((end.getTime() - today.getTime()) / 86_400_000);
+  const overdue = daysLeft < 0;
+  const abs = Math.abs(daysLeft);
+  const label = overdue
+    ? `просрочено на ${abs} ${plural(abs, "день", "дня", "дней")}`
+    : daysLeft === 0
+      ? "сдаём сегодня"
+      : `осталось ${daysLeft} ${plural(daysLeft, "день", "дня", "дней")}`;
+  return { daysLeft, overdue, label };
+}
+
 /* ------------------------- статистика ------------------------- */
 
 export interface CollectionStats {
   total: number;
+  /** сдали полностью */
   paid: number;
-  unpaid: number;
+  /** внесли часть суммы */
+  partial: number;
+  /** ничего не внесли */
+  none: number;
   collected: number;
   remaining: number;
   percent: number;
@@ -80,42 +141,82 @@ export interface CollectionStats {
 export function collectionStats(data: AppData, collection: Collection): CollectionStats {
   const map = data.payments[collection.id] ?? {};
   const total = data.children.length;
-  const paid = data.children.reduce((acc, c) => acc + (map[c.id]?.paid ? 1 : 0), 0);
-  const unpaid = total - paid;
-  const collected = paid * collection.amount;
-  const remaining = unpaid * collection.amount;
+  let paid = 0;
+  let partial = 0;
+  let collected = 0;
+  let remaining = 0;
+
+  for (const c of data.children) {
+    const state = map[c.id];
+    const sum = paidAmount(state);
+    collected += sum;
+    const rem = Math.max(0, collection.amount - sum);
+    remaining += rem;
+    if (sum >= collection.amount && collection.amount > 0) paid += 1;
+    else if (sum > 0) partial += 1;
+  }
+
+  const none = total - paid - partial;
   const percent = total === 0 ? 0 : Math.round((paid / total) * 100);
-  return { total, paid, unpaid, collected, remaining, percent, done: total > 0 && unpaid === 0 };
+  return {
+    total,
+    paid,
+    partial,
+    none,
+    collected,
+    remaining,
+    percent,
+    done: total > 0 && paid === total,
+  };
 }
 
 export function childTotals(data: AppData, childId: string): { paidSum: number; debtSum: number } {
   let paidSum = 0;
   let debtSum = 0;
   for (const coll of data.collections) {
-    if (data.payments[coll.id]?.[childId]?.paid) paidSum += coll.amount;
-    else debtSum += coll.amount;
+    const state = data.payments[coll.id]?.[childId];
+    paidSum += paidAmount(state);
+    debtSum += remainingFor(state, coll.amount);
   }
   return { paidSum, debtSum };
 }
 
 export interface ChildHistoryItem {
   collection: Collection;
-  paid: boolean;
-  paidAt?: number;
+  sum: number;
+  remaining: number;
+  status: PaymentStatus;
+  lastDate?: number;
 }
 
 export function childHistory(data: AppData, childId: string): ChildHistoryItem[] {
   return data.collections
     .map((collection) => {
       const state = data.payments[collection.id]?.[childId];
-      return { collection, paid: Boolean(state?.paid), paidAt: state?.paidAt };
+      const sum = paidAmount(state);
+      const last = state?.contributions[state.contributions.length - 1];
+      return {
+        collection,
+        sum,
+        remaining: remainingFor(state, collection.amount),
+        status: paymentStatus(state, collection.amount),
+        lastDate: last?.date,
+      };
     })
     .sort((a, b) => b.collection.createdAt - a.collection.createdAt);
 }
 
+export interface DebtItem {
+  collection: Collection;
+  /** сколько уже внесено */
+  sum: number;
+  /** сколько осталось (долг по этому сбору) */
+  remaining: number;
+}
+
 export interface DebtEntry {
   child: Child;
-  items: { collection: Collection }[];
+  items: DebtItem[];
   total: number;
 }
 
@@ -123,13 +224,20 @@ export function debtsByChild(data: AppData): DebtEntry[] {
   return data.children
     .map((child) => {
       const items = data.collections
-        .filter((c) => !data.payments[c.id]?.[child.id]?.paid)
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .map((collection) => ({ collection }));
+        .map((collection) => {
+          const state = data.payments[collection.id]?.[child.id];
+          return {
+            collection,
+            sum: paidAmount(state),
+            remaining: remainingFor(state, collection.amount),
+          };
+        })
+        .filter((i) => i.remaining > 0)
+        .sort((a, b) => a.collection.createdAt - b.collection.createdAt);
       return {
         child,
         items,
-        total: items.reduce((s, i) => s + i.collection.amount, 0),
+        total: items.reduce((s, i) => s + i.remaining, 0),
       };
     })
     .filter((e) => e.items.length > 0)
@@ -150,10 +258,11 @@ export function grandTotals(data: AppData): GrandTotals {
   const debtors = new Set<string>();
   for (const coll of data.collections) {
     for (const child of data.children) {
-      if (data.payments[coll.id]?.[child.id]?.paid) {
-        collected += coll.amount;
-      } else {
-        remaining += coll.amount;
+      const state = data.payments[coll.id]?.[child.id];
+      collected += paidAmount(state);
+      const rem = remainingFor(state, coll.amount);
+      if (rem > 0) {
+        remaining += rem;
         debtors.add(child.id);
       }
     }

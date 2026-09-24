@@ -108,11 +108,13 @@ export function Segmented<T extends string>({
   onChange,
   options,
   className,
+  small,
 }: {
   value: T;
   onChange(v: T): void;
   options: { value: T; label: ReactNode }[];
   className?: string;
+  small?: boolean;
 }) {
   const id = useId();
   return (
@@ -125,7 +127,8 @@ export function Segmented<T extends string>({
             type="button"
             onClick={() => onChange(o.value)}
             className={cn(
-              "relative flex-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors",
+              "relative flex-1 rounded-full font-semibold transition-colors",
+              small ? "px-2 py-2 text-[11px]" : "px-3 py-2 text-sm",
               active ? "text-app-text" : "text-app-muted"
             )}
           >

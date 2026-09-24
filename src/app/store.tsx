@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { AppData, Child, Collection, Gender } from "./types";
 import { createAdapter } from "./storage";
-import { uid } from "./utils";
+import { paidAmount, paymentStatus, uid } from "./utils";
 
 export interface ChildInput {
   firstName: string;
@@ -21,6 +21,7 @@ export interface CollectionInput {
   amount: number;
   description?: string;
   date: string;
+  deadline?: string;
 }
 
 interface Store {
@@ -31,7 +32,11 @@ interface Store {
   addCollection(input: CollectionInput): string;
   updateCollection(id: string, patch: Partial<Omit<Collection, "id">>): void;
   removeCollection(id: string): void;
-  setPaid(collectionId: string, childId: string, paid: boolean): void;
+  /** добавить взнос (может быть частичным) */
+  addContribution(collectionId: string, childId: string, amount: number): void;
+  /** удалить один взнос */
+  removeContribution(collectionId: string, childId: string, contributionId: string): void;
+  /** полностью ли оплачен сбор ребёнком */
   isPaid(collectionId: string, childId: string): boolean;
 }
 
@@ -109,21 +114,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
       },
 
-      setPaid(collectionId, childId, paid) {
-        setData((d) => ({
-          ...d,
-          payments: {
-            ...d.payments,
-            [collectionId]: {
-              ...(d.payments[collectionId] ?? {}),
-              [childId]: paid ? { paid: true, paidAt: Date.now() } : { paid: false },
-            },
-          },
-        }));
+      addContribution(collectionId, childId, amount) {
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        setData((d) => {
+          const perChild = { ...(d.payments[collectionId] ?? {}) };
+          const entry = perChild[childId] ?? { contributions: [] };
+          perChild[childId] = {
+            contributions: [
+              ...entry.contributions,
+              { id: uid(), amount: Math.round(amount * 100) / 100, date: Date.now() },
+            ],
+          };
+          return { ...d, payments: { ...d.payments, [collectionId]: perChild } };
+        });
+      },
+
+      removeContribution(collectionId, childId, contributionId) {
+        setData((d) => {
+          const current = d.payments[collectionId]?.[childId];
+          if (!current) return d;
+          const perChild = { ...(d.payments[collectionId] ?? {}) };
+          const contributions = current.contributions.filter(
+            (c) => c.id !== contributionId
+          );
+          if (contributions.length === 0) delete perChild[childId];
+          else perChild[childId] = { contributions };
+          return { ...d, payments: { ...d.payments, [collectionId]: perChild } };
+        });
       },
 
       isPaid(collectionId, childId) {
-        return Boolean(data.payments[collectionId]?.[childId]?.paid);
+        const coll = data.collections.find((c) => c.id === collectionId);
+        if (!coll) return false;
+        const state = data.payments[collectionId]?.[childId];
+        return paymentStatus(state, coll.amount) === "full" && paidAmount(state) > 0;
       },
     }),
     [data]

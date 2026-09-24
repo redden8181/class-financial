@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { useStore } from "../app/store";
 import type { Collection } from "../app/types";
 import { todayInputValue } from "../app/utils";
@@ -21,6 +22,7 @@ export function CollectionFormSheet({
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(todayInputValue());
+  const [deadline, setDeadline] = useState("");
 
   useEffect(() => {
     if (open) {
@@ -28,6 +30,7 @@ export function CollectionFormSheet({
       setAmount(initial ? String(initial.amount) : "");
       setDescription(initial?.description ?? "");
       setDate(initial?.date ?? todayInputValue());
+      setDeadline(initial?.deadline ?? "");
     }
   }, [open, initial]);
 
@@ -42,6 +45,7 @@ export function CollectionFormSheet({
       amount: Math.round(parsedAmount * 100) / 100,
       description: description.trim() || undefined,
       date,
+      deadline: deadline || undefined,
     };
     if (initial) {
       updateCollection(initial.id, payload);
@@ -95,7 +99,7 @@ export function CollectionFormSheet({
           </div>
           <div>
             <label className="label" htmlFor="coll-date">
-              Дата
+              Дата создания
             </label>
             <input
               id="coll-date"
@@ -105,6 +109,34 @@ export function CollectionFormSheet({
               onChange={(e) => setDate(e.target.value)}
             />
           </div>
+        </div>
+        <div>
+          <label className="label" htmlFor="coll-deadline">
+            Собрать до <span className="font-normal">(необязательно)</span>
+          </label>
+          <div className="relative">
+            <input
+              id="coll-deadline"
+              type="date"
+              className="input"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+            />
+            {deadline && (
+              <button
+                type="button"
+                aria-label="Убрать дату"
+                onClick={() => setDeadline("")}
+                className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-app-soft text-app-muted transition-all active:scale-90"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <p className="mt-1.5 text-xs leading-relaxed text-app-muted">
+            Для долгих сборов: приложение покажет, сколько дней осталось.
+            Деньги можно вносить частями.
+          </p>
         </div>
         <div>
           <label className="label" htmlFor="coll-desc">

@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
-import { CalendarDays, CheckCircle2, ChevronRight } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronRight, Clock } from "lucide-react";
 import { useStore } from "../app/store";
 import type { Collection } from "../app/types";
-import { collectionStats, formatDate, formatMoney } from "../app/utils";
+import { collectionStats, deadlineInfo, formatDate, formatMoney } from "../app/utils";
+import { cn } from "../utils/cn";
 import { Progress } from "./ui";
 
 export function CollectionCard({
@@ -16,6 +17,7 @@ export function CollectionCard({
 }) {
   const { data } = useStore();
   const s = collectionStats(data, collection);
+  const dl = deadlineInfo(collection.deadline);
 
   return (
     <motion.div
@@ -49,7 +51,22 @@ export function CollectionCard({
             <ChevronRight size={18} className="mt-1 shrink-0 text-app-muted" />
           )}
         </div>
-        <div className="mt-3.5 flex items-center gap-3">
+
+        {dl && !s.done && (
+          <span
+            className={cn(
+              "mt-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold",
+              dl.overdue
+                ? "bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"
+                : "bg-app-soft text-app-muted"
+            )}
+          >
+            <Clock size={11} />
+            до {formatDate(collection.deadline!)} · {dl.label}
+          </span>
+        )}
+
+        <div className="mt-3 flex items-center gap-3">
           <Progress value={s.percent} className="flex-1" />
           <span className="shrink-0 text-xs font-bold text-app-muted">
             {s.paid} из {s.total} · {s.percent}%

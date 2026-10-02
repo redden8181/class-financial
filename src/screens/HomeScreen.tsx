@@ -1,30 +1,32 @@
 import {
+  ChevronDown,
   CircleAlert,
   HandCoins,
-  Moon,
   PiggyBank,
   Plus,
-  Sun,
+  Settings,
   UserPlus,
   Users,
 } from "lucide-react";
 import { useState } from "react";
 import { useNav } from "../app/nav";
 import { useStore } from "../app/store";
-import { useTheme } from "../app/theme";
 import { formatMoney, grandTotals, plural, sortCollections } from "../app/utils";
 import { ChildFormSheet } from "../components/ChildFormSheet";
+import { ClassSwitcherSheet } from "../components/ClassSwitcherSheet";
+import { SettingsSheet } from "../components/SettingsSheet";
 import { CollectionCard } from "../components/CollectionCard";
 import { CollectionFormSheet } from "../components/CollectionFormSheet";
 import { Button, EmptyState, IconButton, Progress, SectionTitle } from "../components/ui";
 import { cn } from "../utils/cn";
 
 export function HomeScreen() {
-  const { data } = useStore();
+  const { data, activeClass } = useStore();
   const { push, setTab } = useNav();
-  const { dark, toggle } = useTheme();
   const [childForm, setChildForm] = useState(false);
   const [collectionForm, setCollectionForm] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [classesOpen, setClassesOpen] = useState(false);
 
   const totals = grandTotals(data);
   const collections = sortCollections(data.collections);
@@ -32,23 +34,26 @@ export function HomeScreen() {
   return (
     <div
       className="px-4 pb-40"
-      style={{ paddingTop: "max(env(safe-area-inset-top), 1.5rem)" }}
+      style={{ paddingTop: "calc(max(env(safe-area-inset-top), 1rem) + 2.25rem)" }}
     >
-      {/* Шапка */}
+      {/* Шапка: название класса = главный заголовок, он же список классов */}
       <header className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400">
-            Учёт сборов класса
-          </p>
-          <h1 className="mt-0.5 text-[1.7rem] font-extrabold tracking-tight">
-            Классная копилка
-          </h1>
-        </div>
-        <IconButton
-          onClick={toggle}
-          aria-label={dark ? "Светлая тема" : "Тёмная тема"}
+        <button
+          type="button"
+          onClick={() => setClassesOpen(true)}
+          className="flex min-w-0 items-center gap-1.5 text-left transition-opacity active:opacity-60"
         >
-          {dark ? <Sun size={18} /> : <Moon size={18} />}
+          <h1 className="truncate text-[1.7rem] font-extrabold tracking-tight">
+            {activeClass?.name ?? "Мой класс"}
+          </h1>
+          <ChevronDown
+            size={22}
+            strokeWidth={2.6}
+            className="mt-1 shrink-0 text-app-muted"
+          />
+        </button>
+        <IconButton onClick={() => setSettingsOpen(true)} aria-label="Настройки">
+          <Settings size={18} />
         </IconButton>
       </header>
 
@@ -210,6 +215,8 @@ export function HomeScreen() {
         onClose={() => setCollectionForm(false)}
         onCreated={(id) => push({ name: "collection", collectionId: id })}
       />
+      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <ClassSwitcherSheet open={classesOpen} onClose={() => setClassesOpen(false)} />
     </div>
   );
 }

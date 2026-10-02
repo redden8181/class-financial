@@ -1,3 +1,5 @@
+import { USER_CACHE } from "./storage";
+
 /**
  * Хранилище фотографий чеков в IndexedDB.
  * Картинки держим отдельно от основных данных (localStorage), чтобы
@@ -24,7 +26,41 @@ function openDB(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
+function photoCacheUrl(id: string): string {
+  return new URL(`./__kopilka_photo__/${encodeURIComponent(id)}`, document.baseURI).toString();
+}
+
+async function savePhotoToCache(id: string, dataUrl: string): Promise<void> {
+  if (!("caches" in window)) return;
+  try {
+    const cache = await caches.open(USER_CACHE);
+    await cache.put(
+      photoCacheUrl(id),
+      new Response(dataUrl, { headers: { "content-type": "text/plain" } })
+    );
+  } catch {
+    /* резервный слой недоступен */
+  }
+}
+
+async function getPhotoFromCache(id: string): Promise<string | null> {
+  if (!("caches" in window)) return null;
+  const names = [USER_CACHE, ...(await caches.keys().catch(() => [USER_CACHE]))].filter(
+    (n) => n === USER_CACHE || n.startsWith("kopilka-")
+  );
+  for (const name of names) {
+    try {
+      const response = await (await caches.open(name)).match(photoCacheUrl(id));
+      if (response) return await response.text();
+    } catch {
+      /* пробуем следующий кэш */
+    }
+  }
+  return null;
+}
+
 export async function savePhoto(id: string, dataUrl: string): Promise<void> {
+  const cacheWrite = savePhotoToCache(id, dataUrl);
   try {
     const db = await openDB();
     await new Promise<void>((resolve, reject) => {
@@ -36,23 +72,42 @@ export async function savePhoto(id: string, dataUrl: string): Promise<void> {
   } catch {
     /* noop */
   }
+  await cacheWrite;
 }
 
 export async function getPhoto(id: string): Promise<string | null> {
   try {
     const db = await openDB();
-    return await new Promise<string | null>((resolve, reject) => {
+    const local = await new Promise<string | null>((resolve, reject) => {
       const tx = db.transaction(STORE, "readonly");
       const req = tx.objectStore(STORE).get(id);
       req.onsuccess = () => resolve((req.result as string) ?? null);
       req.onerror = () => reject(req.error);
     });
+    if (local) {
+      // Старые фото могли существовать только в IndexedDB. При первом чтении
+      // зеркалим их в общий кэш, чтобы вторая иконка PWA тоже могла их открыть.
+      void savePhotoToCache(id, local);
+      return local;
+    }
   } catch {
-    return null;
+    /* пробуем общий кэш ниже */
   }
+  const cached = await getPhotoFromCache(id);
+  // Восстановить локальную копию, если фото нашлось в общем кэше.
+  if (cached) void savePhoto(id, cached);
+  return cached;
 }
 
 export async function deletePhoto(id: string): Promise<void> {
+  const cacheDelete = (async () => {
+    if (!("caches" in window)) return;
+    try {
+      await (await caches.open(USER_CACHE)).delete(photoCacheUrl(id));
+    } catch {
+      /* noop */
+    }
+  })();
   try {
     const db = await openDB();
     await new Promise<void>((resolve) => {
@@ -64,6 +119,22 @@ export async function deletePhoto(id: string): Promise<void> {
   } catch {
     /* noop */
   }
+  await cacheDelete;
+}
+
+/** Фото, на которые ссылается резервная копия приложения. */
+export async function exportPhotos(ids: string[]): Promise<Record<string, string>> {
+  const unique = [...new Set(ids)];
+  const entries = await Promise.all(
+    unique.map(async (id) => [id, await getPhoto(id)] as const)
+  );
+  return Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry[1])));
+}
+
+export async function importPhotos(photos: Record<string, string>): Promise<void> {
+  await Promise.all(
+    Object.entries(photos).map(([id, dataUrl]) => savePhoto(id, dataUrl))
+  );
 }
 
 /**

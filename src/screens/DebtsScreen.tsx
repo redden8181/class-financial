@@ -14,7 +14,7 @@ export function DebtsScreen() {
   return (
     <div
       className="px-4 pb-40"
-      style={{ paddingTop: "max(env(safe-area-inset-top), 1.5rem)" }}
+      style={{ paddingTop: "calc(max(env(safe-area-inset-top), 1rem) + 2.25rem)" }}
     >
       <header>
         <h1 className="text-[1.7rem] font-extrabold tracking-tight">Все долги</h1>

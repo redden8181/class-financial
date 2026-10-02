@@ -6,7 +6,16 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { AppData, Child, Collection, Expense, Gender } from "./types";
+import {
+  emptyData,
+  type AppData,
+  type Child,
+  type Collection,
+  type Expense,
+  type Gender,
+  type RootData,
+  type SchoolClass,
+} from "./types";
 import { createAdapter } from "./storage";
 import { deletePhoto } from "./photos";
 import { paidAmount, paymentStatus, uid } from "./utils";
@@ -25,28 +34,6 @@ export interface CollectionInput {
   deadline?: string;
 }
 
-interface Store {
-  data: AppData;
-  addChild(input: ChildInput): string;
-  updateChild(id: string, patch: Partial<Omit<Child, "id">>): void;
-  removeChild(id: string): void;
-  addCollection(input: CollectionInput): string;
-  updateCollection(id: string, patch: Partial<Omit<Collection, "id">>): void;
-  removeCollection(id: string): void;
-  /** добавить взнос (может быть частичным) */
-  addContribution(collectionId: string, childId: string, amount: number): void;
-  /** удалить один взнос */
-  removeContribution(collectionId: string, childId: string, contributionId: string): void;
-  /** полностью ли оплачен сбор ребёнком */
-  isPaid(collectionId: string, childId: string): boolean;
-  /** добавить трату по сбору */
-  addExpense(collectionId: string, input: ExpenseInput): void;
-  /** изменить трату */
-  updateExpense(collectionId: string, expenseId: string, patch: ExpenseInput): void;
-  /** удалить трату (вместе с фото чека) */
-  removeExpense(collectionId: string, expenseId: string): void;
-}
-
 export interface ExpenseInput {
   title: string;
   amount: number;
@@ -55,23 +42,154 @@ export interface ExpenseInput {
   photoId?: string;
 }
 
+interface Store {
+  /** данные активного класса */
+  data: AppData;
+  /** всё содержимое приложения */
+  root: RootData;
+  classes: SchoolClass[];
+  activeClass: SchoolClass;
+  /** восстановление резервных слоёв завершено */
+  ready: boolean;
+
+  /* классы */
+  addClass(name: string): string;
+  renameClass(id: string, name: string): void;
+  removeClass(id: string): void;
+  switchClass(id: string): void;
+  /** полная замена содержимого (импорт резервной копии) */
+  replaceRoot(root: RootData): void;
+
+  /* дети */
+  addChild(input: ChildInput): string;
+  updateChild(id: string, patch: Partial<Omit<Child, "id">>): void;
+  removeChild(id: string): void;
+
+  /* сборы */
+  addCollection(input: CollectionInput): string;
+  updateCollection(id: string, patch: Partial<Omit<Collection, "id">>): void;
+  removeCollection(id: string): void;
+
+  /* взносы */
+  addContribution(collectionId: string, childId: string, amount: number): void;
+  removeContribution(collectionId: string, childId: string, contributionId: string): void;
+  isPaid(collectionId: string, childId: string): boolean;
+
+  /* расходы */
+  addExpense(collectionId: string, input: ExpenseInput): void;
+  updateExpense(collectionId: string, expenseId: string, patch: ExpenseInput): void;
+  removeExpense(collectionId: string, expenseId: string): void;
+}
+
 const StoreContext = createContext<Store | null>(null);
 const adapter = createAdapter();
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<AppData>(() => adapter.load());
+  const [root, setRoot] = useState<RootData>(() => adapter.load());
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    adapter.save(data);
-  }, [data]);
+    let alive = true;
+    adapter.recover(root).then((recovered) => {
+      if (!alive) return;
+      setRoot(recovered);
+      // Автосохранение включаем после восстановления, чтобы пустое состояние
+      // не перезаписало зеркала при сбое iOS.
+      window.setTimeout(() => {
+        if (alive) setReady(true);
+      }, 250);
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const store = useMemo<Store>(
-    () => ({
+  useEffect(() => {
+    if (ready) adapter.save(root);
+  }, [root, ready]);
+
+  const activeClass =
+    root.classes.find((c) => c.id === root.activeClassId) ?? root.classes[0];
+  const data = root.byClass[activeClass?.id] ?? emptyData;
+
+  const store = useMemo<Store>(() => {
+    /** изменить данные активного класса */
+    const patchActive = (fn: (d: AppData) => AppData) => {
+      setRoot((r) => {
+        const id = r.activeClassId;
+        const current = r.byClass[id] ?? emptyData;
+        return { ...r, byClass: { ...r.byClass, [id]: fn(current) } };
+      });
+    };
+
+    return {
       data,
+      root,
+      classes: root.classes,
+      activeClass,
+      ready,
+
+      /* ----------------------------- классы ----------------------------- */
+
+      addClass(name) {
+        const id = uid();
+        setRoot((r) => ({
+          classes: [
+            ...r.classes,
+            { id, name: name.trim() || "Новый класс", createdAt: Date.now() },
+          ],
+          activeClassId: id,
+          byClass: { ...r.byClass, [id]: { ...emptyData } },
+        }));
+        return id;
+      },
+
+      renameClass(id, name) {
+        setRoot((r) => ({
+          ...r,
+          classes: r.classes.map((c) =>
+            c.id === id ? { ...c, name: name.trim() || c.name } : c
+          ),
+        }));
+      },
+
+      removeClass(id) {
+        setRoot((r) => {
+          // последний класс не удаляем — очищаем его содержимое
+          if (r.classes.length <= 1) return r;
+
+          for (const list of Object.values(r.byClass[id]?.expenses ?? {})) {
+            for (const e of list) if (e.photoId) void deletePhoto(e.photoId);
+          }
+
+          const classes = r.classes.filter((c) => c.id !== id);
+          const byClass = { ...r.byClass };
+          delete byClass[id];
+          return {
+            classes,
+            byClass,
+            activeClassId:
+              r.activeClassId === id ? classes[0].id : r.activeClassId,
+          };
+        });
+      },
+
+      switchClass(id) {
+        setRoot((r) =>
+          r.classes.some((c) => c.id === id) ? { ...r, activeClassId: id } : r
+        );
+      },
+
+      replaceRoot(next) {
+        setRoot(next);
+      },
+
+      /* ------------------------------ дети ------------------------------ */
 
       addChild(input) {
         const id = uid();
-        setData((d) => ({
+        patchActive((d) => ({
           ...d,
           children: [...d.children, { id, createdAt: Date.now(), ...input }],
         }));
@@ -79,14 +197,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       updateChild(id, patch) {
-        setData((d) => ({
+        patchActive((d) => ({
           ...d,
           children: d.children.map((c) => (c.id === id ? { ...c, ...patch } : c)),
         }));
       },
 
       removeChild(id) {
-        setData((d) => {
+        patchActive((d) => {
           const payments: AppData["payments"] = {};
           for (const cid of Object.keys(d.payments)) {
             const m = { ...d.payments[cid] };
@@ -101,9 +219,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
       },
 
+      /* ------------------------------ сборы ----------------------------- */
+
       addCollection(input) {
         const id = uid();
-        setData((d) => ({
+        patchActive((d) => ({
           ...d,
           collections: [...d.collections, { id, createdAt: Date.now(), ...input }],
         }));
@@ -111,14 +231,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       updateCollection(id, patch) {
-        setData((d) => ({
+        patchActive((d) => ({
           ...d,
           collections: d.collections.map((c) => (c.id === id ? { ...c, ...patch } : c)),
         }));
       },
 
       removeCollection(id) {
-        setData((d) => {
+        patchActive((d) => {
           const payments = { ...d.payments };
           delete payments[id];
           const expenses = { ...d.expenses };
@@ -135,63 +255,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
       },
 
-      addExpense(collectionId, input) {
-        if (!Number.isFinite(input.amount) || input.amount <= 0) return;
-        const expense: Expense = {
-          id: uid(),
-          createdAt: Date.now(),
-          ...input,
-          amount: Math.round(input.amount * 100) / 100,
-        };
-        setData((d) => ({
-          ...d,
-          expenses: {
-            ...d.expenses,
-            [collectionId]: [...(d.expenses[collectionId] ?? []), expense],
-          },
-        }));
-      },
-
-      updateExpense(collectionId, expenseId, patch) {
-        setData((d) => {
-          const list = d.expenses[collectionId] ?? [];
-          const prev = list.find((e) => e.id === expenseId);
-          // старое фото заменили — удаляем из IndexedDB
-          if (prev?.photoId && prev.photoId !== patch.photoId) {
-            void deletePhoto(prev.photoId);
-          }
-          return {
-            ...d,
-            expenses: {
-              ...d.expenses,
-              [collectionId]: list.map((e) =>
-                e.id === expenseId
-                  ? { ...e, ...patch, amount: Math.round(patch.amount * 100) / 100 }
-                  : e
-              ),
-            },
-          };
-        });
-      },
-
-      removeExpense(collectionId, expenseId) {
-        setData((d) => {
-          const list = d.expenses[collectionId] ?? [];
-          const target = list.find((e) => e.id === expenseId);
-          if (target?.photoId) void deletePhoto(target.photoId);
-          return {
-            ...d,
-            expenses: {
-              ...d.expenses,
-              [collectionId]: list.filter((e) => e.id !== expenseId),
-            },
-          };
-        });
-      },
+      /* ----------------------------- взносы ----------------------------- */
 
       addContribution(collectionId, childId, amount) {
         if (!Number.isFinite(amount) || amount <= 0) return;
-        setData((d) => {
+        patchActive((d) => {
           const perChild = { ...(d.payments[collectionId] ?? {}) };
           const entry = perChild[childId] ?? { contributions: [] };
           perChild[childId] = {
@@ -205,7 +273,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       removeContribution(collectionId, childId, contributionId) {
-        setData((d) => {
+        patchActive((d) => {
           const current = d.payments[collectionId]?.[childId];
           if (!current) return d;
           const perChild = { ...(d.payments[collectionId] ?? {}) };
@@ -224,9 +292,63 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const state = data.payments[collectionId]?.[childId];
         return paymentStatus(state, coll.amount) === "full" && paidAmount(state) > 0;
       },
-    }),
-    [data]
-  );
+
+      /* ----------------------------- расходы ---------------------------- */
+
+      addExpense(collectionId, input) {
+        if (!Number.isFinite(input.amount) || input.amount <= 0) return;
+        const expense: Expense = {
+          id: uid(),
+          createdAt: Date.now(),
+          ...input,
+          amount: Math.round(input.amount * 100) / 100,
+        };
+        patchActive((d) => ({
+          ...d,
+          expenses: {
+            ...d.expenses,
+            [collectionId]: [...(d.expenses[collectionId] ?? []), expense],
+          },
+        }));
+      },
+
+      updateExpense(collectionId, expenseId, patch) {
+        patchActive((d) => {
+          const list = d.expenses[collectionId] ?? [];
+          const prev = list.find((e) => e.id === expenseId);
+          if (prev?.photoId && prev.photoId !== patch.photoId) {
+            void deletePhoto(prev.photoId);
+          }
+          return {
+            ...d,
+            expenses: {
+              ...d.expenses,
+              [collectionId]: list.map((e) =>
+                e.id === expenseId
+                  ? { ...e, ...patch, amount: Math.round(patch.amount * 100) / 100 }
+                  : e
+              ),
+            },
+          };
+        });
+      },
+
+      removeExpense(collectionId, expenseId) {
+        patchActive((d) => {
+          const list = d.expenses[collectionId] ?? [];
+          const target = list.find((e) => e.id === expenseId);
+          if (target?.photoId) void deletePhoto(target.photoId);
+          return {
+            ...d,
+            expenses: {
+              ...d.expenses,
+              [collectionId]: list.filter((e) => e.id !== expenseId),
+            },
+          };
+        });
+      },
+    };
+  }, [root, data, activeClass, ready]);
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }

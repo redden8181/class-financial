@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { NavProvider, routeKey, useNav } from "./app/nav";
-import { StoreProvider } from "./app/store";
+import { StoreProvider, useStore } from "./app/store";
 import { ThemeProvider } from "./app/theme";
 import { BottomNav } from "./components/BottomNav";
 import { CollectionDetailScreen } from "./screens/CollectionDetailScreen";
@@ -12,7 +12,19 @@ import { KidsScreen } from "./screens/KidsScreen";
 
 function Shell() {
   const { tab, stack } = useNav();
+  const { ready } = useStore();
   const top = stack[stack.length - 1];
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-app-bg">
+        <div className="text-center">
+          <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-app-border border-t-amber-500" />
+          <p className="mt-3 text-sm font-semibold text-app-muted">Проверяем сохранённые данные…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative mx-auto min-h-dvh w-full max-w-md bg-app-bg">

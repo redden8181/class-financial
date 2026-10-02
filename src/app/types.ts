@@ -53,6 +53,7 @@ export interface Expense {
 /** expenses[collectionId] */
 export type ExpensesMap = Record<string, Expense[]>;
 
+/** данные одного класса */
 export interface AppData {
   children: Child[];
   collections: Collection[];
@@ -66,3 +67,20 @@ export const emptyData: AppData = {
   payments: {},
   expenses: {},
 };
+
+/** класс в списке */
+export interface SchoolClass {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
+/** всё содержимое приложения: несколько классов + активный */
+export interface RootData {
+  classes: SchoolClass[];
+  activeClassId: string;
+  /** данные по каждому классу: byClass[classId] */
+  byClass: Record<string, AppData>;
+}
+
+export const DEFAULT_CLASS_NAME = "Мой класс";

@@ -15,7 +15,7 @@ import { uid } from "./utils";
  * Защищённое локальное хранилище. Все данные лежат только на устройстве.
  *
  * Зеркалирование: localStorage + резервные ключи + IndexedDB + Cache Storage.
- * Пустое состояние никогда не перезаписывает непустую копию.
+ * Сохранённое пустое состояние — тоже актуальные данные после удаления.
  */
 
 const LOCAL_KEY = "klassnaya-kopilka/v1";
@@ -213,8 +213,20 @@ function isSnapshot(value: unknown): value is Snapshot {
 function normalizeSnapshot(value: unknown): Snapshot | null {
   if (!isSnapshot(value)) return null;
   const data = normalizeRootData(value.data);
-  if (!hasRootData(data)) return null;
   return { version: 1, updatedAt: value.updatedAt, data };
+}
+
+function readLocalSnapshots(): Snapshot[] {
+  const candidates: Snapshot[] = [];
+  for (const key of LOCAL_MIRROR_KEYS) {
+    try {
+      const snapshot = normalizeSnapshot(JSON.parse(localStorage.getItem(key) ?? "null"));
+      if (snapshot) candidates.push(snapshot);
+    } catch {
+      // Повреждение одного зеркала не мешает прочитать другое.
+    }
+  }
+  return candidates;
 }
 
 /* ------------------------------ IndexedDB ------------------------------ */
@@ -365,15 +377,7 @@ class DurableStorageAdapter implements StorageAdapter {
   }
 
   loadBackup(): RootData | null {
-    const candidates: Snapshot[] = [];
-    try {
-      for (const key of LOCAL_MIRROR_KEYS) {
-        const snapshot = normalizeSnapshot(JSON.parse(localStorage.getItem(key) ?? "null"));
-        if (snapshot) candidates.push(snapshot);
-      }
-    } catch {
-      /* резервная подпись повреждена */
-    }
+    const candidates = readLocalSnapshots();
     candidates.sort((a, b) => b.updatedAt - a.updatedAt);
     return candidates[0]?.data ?? null;
   }
@@ -381,19 +385,23 @@ class DurableStorageAdapter implements StorageAdapter {
   async recover(local: RootData): Promise<RootData> {
     void requestPersistentStorage();
 
-    if (!hasRootData(local)) {
-      const backup = this.loadBackup();
-      if (backup) return backup;
+    let localUpdatedAt = 0;
+    let hasSavedLocal = false;
+    try {
+      // load() возвращает пустые данные и при повреждённом JSON. Такую
+      // заглушку нельзя предпочесть настоящей резервной копии.
+      const raw = localStorage.getItem(LOCAL_KEY);
+      hasSavedLocal = Boolean(raw && JSON.parse(raw));
+      localUpdatedAt = Number(localStorage.getItem(LOCAL_UPDATED_KEY) ?? 0);
+    } catch {
+      // localStorage может быть запрещён; продолжаем с IndexedDB/Cache API.
     }
 
-    const localUpdatedAt = Number(localStorage.getItem(LOCAL_UPDATED_KEY) ?? 0);
     const candidates: Snapshot[] = [];
-    if (hasRootData(local)) {
+    if (hasSavedLocal || hasRootData(local)) {
       candidates.push({ version: 1, updatedAt: localUpdatedAt, data: local });
     }
-
-    const backup = this.loadBackup();
-    if (backup) candidates.push({ version: 1, updatedAt: localUpdatedAt, data: backup });
+    candidates.push(...readLocalSnapshots());
 
     const [indexed, cached] = await Promise.all([
       readIndexedSnapshots(),
@@ -415,7 +423,6 @@ class DurableStorageAdapter implements StorageAdapter {
       /* основной слой переполнен */
     }
 
-    if (!hasRootData(data)) return;
     const snapshot: Snapshot = { version: 1, updatedAt, data };
 
     try {

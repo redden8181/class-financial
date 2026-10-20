@@ -30,7 +30,8 @@ self.addEventListener("activate", (event) => {
             if (k.startsWith(USER_CACHE_PREFIX)) return false;
             if (k === CACHE) return false;
             if (k === "kopilka-v1") return false;
-            return true;
+            // Cache Storage общий для всех приложений на одном origin.
+            return k.startsWith("kopilka-");
           })
           .map((k) => caches.delete(k))
       );

@@ -30,16 +30,17 @@ function photoCacheUrl(id: string): string {
   return new URL(`./__kopilka_photo__/${encodeURIComponent(id)}`, document.baseURI).toString();
 }
 
-async function savePhotoToCache(id: string, dataUrl: string): Promise<void> {
-  if (!("caches" in window)) return;
+async function savePhotoToCache(id: string, dataUrl: string): Promise<boolean> {
+  if (!("caches" in window)) return false;
   try {
     const cache = await caches.open(USER_CACHE);
     await cache.put(
       photoCacheUrl(id),
       new Response(dataUrl, { headers: { "content-type": "text/plain" } })
     );
+    return true;
   } catch {
-    /* резервный слой недоступен */
+    return false;
   }
 }
 
@@ -61,6 +62,7 @@ async function getPhotoFromCache(id: string): Promise<string | null> {
 
 export async function savePhoto(id: string, dataUrl: string): Promise<void> {
   const cacheWrite = savePhotoToCache(id, dataUrl);
+  let savedToDB = false;
   try {
     const db = await openDB();
     await new Promise<void>((resolve, reject) => {
@@ -68,11 +70,14 @@ export async function savePhoto(id: string, dataUrl: string): Promise<void> {
       tx.objectStore(STORE).put(dataUrl, id);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
     });
+    savedToDB = true;
   } catch {
     /* noop */
   }
-  await cacheWrite;
+  const savedToCache = await cacheWrite;
+  if (!savedToDB && !savedToCache) throw new Error("Не удалось сохранить фото");
 }
 
 export async function getPhoto(id: string): Promise<string | null> {
@@ -95,7 +100,7 @@ export async function getPhoto(id: string): Promise<string | null> {
   }
   const cached = await getPhotoFromCache(id);
   // Восстановить локальную копию, если фото нашлось в общем кэше.
-  if (cached) void savePhoto(id, cached);
+  if (cached) void savePhoto(id, cached).catch(() => undefined);
   return cached;
 }
 

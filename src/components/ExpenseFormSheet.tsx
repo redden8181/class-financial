@@ -28,12 +28,17 @@ export function ExpenseFormSheet({
   const [photoId, setPhotoId] = useState<string | undefined>(undefined);
   const [preview, setPreview] = useState<string | null>(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const photoRequest = useRef(0);
   const [zoom, setZoom] = useState(false);
   /** фото, сохранённые в этой сессии, но не подтверждённые кнопкой «Сохранить» */
   const draftPhotos = useRef<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
+    const request = ++photoRequest.current;
+    setLoadingPhoto(false);
+    setPhotoError(null);
     setTitle(initial?.title ?? "");
     setAmount(initial ? String(initial.amount) : "");
     setDate(initial?.date || todayInputValue());
@@ -42,29 +47,50 @@ export function ExpenseFormSheet({
     draftPhotos.current = [];
     setPreview(null);
     if (initial?.photoId) {
-      getPhoto(initial.photoId).then(setPreview);
+      getPhoto(initial.photoId).then((photo) => {
+        if (photoRequest.current === request) setPreview(photo);
+      });
     }
+    return () => {
+      ++photoRequest.current;
+      for (const id of draftPhotos.current) void deletePhoto(id);
+      draftPhotos.current = [];
+    };
   }, [open, initial]);
 
   const pickPhoto = async (file: File | undefined) => {
     if (!file) return;
+    const request = ++photoRequest.current;
     setLoadingPhoto(true);
+    setPhotoError(null);
     try {
       const dataUrl = await compressImage(file);
+      if (request !== photoRequest.current) return;
       const id = uid();
       await savePhoto(id, dataUrl);
+      if (request !== photoRequest.current) {
+        await deletePhoto(id);
+        return;
+      }
       draftPhotos.current.push(id);
       setPhotoId(id);
       setPreview(dataUrl);
     } catch {
-      /* игнорируем неудачную загрузку */
+      if (request === photoRequest.current) {
+        setPhotoError("Не удалось сохранить фото чека. Попробуйте выбрать его ещё раз.");
+      }
     } finally {
-      setLoadingPhoto(false);
-      if (fileRef.current) fileRef.current.value = "";
+      if (request === photoRequest.current) {
+        setLoadingPhoto(false);
+        if (fileRef.current) fileRef.current.value = "";
+      }
     }
   };
 
   const clearPhoto = () => {
+    ++photoRequest.current;
+    setLoadingPhoto(false);
+    setPhotoError(null);
     if (photoId && draftPhotos.current.includes(photoId)) void deletePhoto(photoId);
     setPhotoId(undefined);
     setPreview(null);
@@ -78,6 +104,7 @@ export function ExpenseFormSheet({
   };
 
   const close = () => {
+    ++photoRequest.current;
     cleanupDrafts();
     onClose();
   };
@@ -86,7 +113,7 @@ export function ExpenseFormSheet({
   const valid = title.trim().length > 0 && Number.isFinite(parsed) && parsed > 0;
 
   const save = () => {
-    if (!valid) return;
+    if (!valid || loadingPhoto) return;
     const payload = {
       title: title.trim(),
       amount: parsed,
@@ -184,6 +211,7 @@ export function ExpenseFormSheet({
                   variant="soft"
                   size="md"
                   onClick={() => fileRef.current?.click()}
+                  disabled={loadingPhoto}
                 >
                   <ImageUp size={16} />
                   Заменить
@@ -226,8 +254,9 @@ export function ExpenseFormSheet({
           />
         </div>
 
-        <Button className="mt-1" onClick={save} disabled={!valid}>
-          {initial ? "Сохранить" : "Добавить расход"}
+        {photoError && <p role="alert" className="text-sm text-rose-500">{photoError}</p>}
+        <Button className="mt-1" onClick={save} disabled={!valid || loadingPhoto}>
+          {loadingPhoto ? "Сохраняем фото…" : initial ? "Сохранить" : "Добавить расход"}
         </Button>
       </div>
 

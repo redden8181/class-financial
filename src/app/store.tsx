@@ -98,6 +98,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       window.setTimeout(() => {
         if (alive) setReady(true);
       }, 250);
+    }).catch(() => {
+      // Не оставляем интерфейс в бесконечной загрузке при сбое браузерного API.
+      if (alive) setReady(true);
     });
     return () => {
       alive = false;

@@ -79,21 +79,26 @@ export function vibrate(ms = 12): void {
 
 export type PaymentStatus = "none" | "partial" | "full";
 
+/** Все денежные суммы складываем и вычитаем в целых копейках. */
+export function addMoney(a: number, b: number): number {
+  return (Math.round(a * 100) + Math.round(b * 100)) / 100;
+}
+
 /** сколько уже внесено по сбору */
 export function paidAmount(state?: PaymentState): number {
   if (!state) return 0;
-  return state.contributions.reduce((s, c) => s + c.amount, 0);
+  return state.contributions.reduce((s, c) => addMoney(s, c.amount), 0);
 }
 
 export function paymentStatus(state: PaymentState | undefined, amount: number): PaymentStatus {
   const sum = paidAmount(state);
   if (sum <= 0) return "none";
-  return sum < amount ? "partial" : "full";
+  return Math.round(sum * 100) < Math.round(amount * 100) ? "partial" : "full";
 }
 
 /** сколько осталось внести */
 export function remainingFor(state: PaymentState | undefined, amount: number): number {
-  return Math.max(0, amount - paidAmount(state));
+  return Math.max(0, addMoney(amount, -paidAmount(state)));
 }
 
 /* --------------------------- дедлайн --------------------------- */
@@ -126,7 +131,7 @@ export function deadlineInfo(deadline?: string): DeadlineInfo | null {
 
 /** сумма всех трат по сбору */
 export function expensesTotal(data: AppData, collectionId: string): number {
-  return (data.expenses[collectionId] ?? []).reduce((s, e) => s + e.amount, 0);
+  return (data.expenses[collectionId] ?? []).reduce((s, e) => addMoney(s, e.amount), 0);
 }
 
 /** траты сбора, свежие сверху */
@@ -165,10 +170,10 @@ export function collectionStats(data: AppData, collection: Collection): Collecti
   for (const c of data.children) {
     const state = map[c.id];
     const sum = paidAmount(state);
-    collected += sum;
-    const rem = Math.max(0, collection.amount - sum);
-    remaining += rem;
-    if (sum >= collection.amount && collection.amount > 0) paid += 1;
+    collected = addMoney(collected, sum);
+    const rem = remainingFor(state, collection.amount);
+    remaining = addMoney(remaining, rem);
+    if (rem === 0 && collection.amount > 0) paid += 1;
     else if (sum > 0) partial += 1;
   }
 
@@ -185,7 +190,7 @@ export function collectionStats(data: AppData, collection: Collection): Collecti
     percent,
     done: total > 0 && paid === total,
     spent,
-    balance: collected - spent,
+    balance: addMoney(collected, -spent),
   };
 }
 
@@ -194,8 +199,8 @@ export function childTotals(data: AppData, childId: string): { paidSum: number; 
   let debtSum = 0;
   for (const coll of data.collections) {
     const state = data.payments[coll.id]?.[childId];
-    paidSum += paidAmount(state);
-    debtSum += remainingFor(state, coll.amount);
+    paidSum = addMoney(paidSum, paidAmount(state));
+    debtSum = addMoney(debtSum, remainingFor(state, coll.amount));
   }
   return { paidSum, debtSum };
 }
@@ -256,7 +261,7 @@ export function debtsByChild(data: AppData): DebtEntry[] {
       return {
         child,
         items,
-        total: items.reduce((s, i) => s + i.remaining, 0),
+        total: items.reduce((s, i) => addMoney(s, i.remaining), 0),
       };
     })
     .filter((e) => e.items.length > 0)
@@ -282,18 +287,18 @@ export function grandTotals(data: AppData): GrandTotals {
   for (const coll of data.collections) {
     for (const child of data.children) {
       const state = data.payments[coll.id]?.[child.id];
-      collected += paidAmount(state);
+      collected = addMoney(collected, paidAmount(state));
       const rem = remainingFor(state, coll.amount);
       if (rem > 0) {
-        remaining += rem;
+        remaining = addMoney(remaining, rem);
         debtors.add(child.id);
       }
     }
   }
-  const all = collected + remaining;
+  const all = addMoney(collected, remaining);
   let spent = 0;
   for (const list of Object.values(data.expenses)) {
-    for (const e of list) spent += e.amount;
+    for (const e of list) spent = addMoney(spent, e.amount);
   }
   return {
     collected,
@@ -302,7 +307,7 @@ export function grandTotals(data: AppData): GrandTotals {
     kids: data.children.length,
     collectedPercent: all === 0 ? 0 : Math.round((collected / all) * 100),
     spent,
-    balance: collected - spent,
+    balance: addMoney(collected, -spent),
   };
 }
 

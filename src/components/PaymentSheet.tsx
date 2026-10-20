@@ -7,6 +7,7 @@ import {
   fullName,
   paidAmount,
   paymentStatus,
+  remainingFor,
   vibrate,
 } from "../app/utils";
 import { cn } from "../utils/cn";
@@ -39,7 +40,7 @@ export function PaymentSheet({
     collection && child ? data.payments[collection.id]?.[child.id] : undefined;
   const sum = paidAmount(state);
   const status = collection ? paymentStatus(state, collection.amount) : "none";
-  const remaining = collection ? Math.max(0, collection.amount - sum) : 0;
+  const remaining = collection ? remainingFor(state, collection.amount) : 0;
 
   useEffect(() => {
     if (open && collection && child) {
